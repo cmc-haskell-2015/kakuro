@@ -28,33 +28,44 @@ converter s = createAllRows s 0
 
 -------------отрисовка всех клеток-----------------------
 
-createAllRows :: [[Cell]] -> Int -> Picture
+createAllRows :: [[Cell]] -> Float -> Picture
 createAllRows [] _ = Blank
 createAllRows (x : xs) n = Pictures[(createOneRow x n 0), (createAllRows xs (n + 1))]
 
 --------------отрисовка одной строки с клетками. параметры: строка, номер строки, номер столбца-----------
 
-createOneRow :: [Cell] -> Int -> Int -> Picture
-creaeOneRow [] _ _ = Blank
+createOneRow :: [Cell] -> Float -> Float -> Picture
+createOneRow [] _ _ = Blank
 createOneRow (x : xs) i j = Pictures[(createOneCell x i j), (createOneRow xs i (j + 1))]
 
 --------------отрисовка одной клетки. параметры: клетка, номер строки, номер столбца-----------------------
 
-createOneCell :: Cell -> Int -> Int -> Picture
-createOneCell (White x) i j = Pictures[(whiteRectangle i j), (cellText x)]
-createOneCell (Black x y) i j =  Pictures[(blackRectangle i j), (cellTextBlack x y)]
+createOneCell :: Cell -> Float -> Float -> Picture
+createOneCell (White x) i j = Pictures[(whiteRectangle i j), (cellTextWhite x i j)]
+createOneCell (Black x y) i j =  Pictures[(blackRectangle i j), (cellTextBlack x y i j)]
 
-whiteRectangle :: Int -> Int ->Pictures
+whiteRectangle :: Float -> Float ->Picture
 whiteRectangle i j = translate  (-175 + j * 50) (175 - i * 50) (rectangleWire 50 50)
 
-blackRectangle :: Int -> Int -> Picture
-blackRectangle i j x y  =  pictures[translate  (-175 + j * 50) (175 - i * 50) (rectangleWire 50 50), line[ (-200 + 50 * j, 200 - 50 * i), (-150 + j * 50, 150 - i * 50)]]
+blackRectangle :: Float -> Float -> Picture
+blackRectangle i j  =  Pictures[color (makeColor 0.7 0.7 0.7 0.7) (translate  (-175 + j * 50) (175 - i * 50) (rectangleSolid 50 50)),
+                    translate  (-175 + j * 50) (175 - i * 50) (rectangleWire 50 50),
+                    line[ (-200 + 50 * j, 200 - 50 * i), (-150 + j * 50, 150 - i * 50)]]
 
+cellTextWhite :: Int -> Float -> Float -> Picture
+cellTextWhite 0 _ _ = Blank
+cellTextWhite n i j = translate (-175 + j * 50) (175 - i * 50) (scale 0.2 0.2 (text (intToString n)))
 
+intToString :: Int -> String
+intToString n | n < 10 = [intToDigit n]
+              | n >= 10 = [intToDigit (div n 10), intToDigit(mod n 10)]
 
---pictures[(color (makeColor 0 0 0 0) (scale 1 1 (translate 0 0 (text "Hello")))), (rectangleWire 50 70)]
------line [(0, 0), (50, 70)]
------translate 70 100 (rectangleWire 50 70)
+cellTextBlack :: Int -> Int -> Float -> Float -> Picture
+cellTextBlack 99 99 _ _ = Blank
+cellTextBlack 0 y i j = translate  (-175 + j * 50 + 5) (175 - i * 50 + 5) (scale 0.1 0.1 (text (intToString y)))
+cellTextBlack x 0 i j = translate  (-175 + j * 50 - 15) (175 - i * 50 - 15) (scale 0.1 0.1 (text (intToString x)))
+cellTextBlack x y i j = Pictures[translate  (-175 + j * 50 + 5) (175 - i * 50 + 5) (scale 0.1 0.1 (text (intToString y))),
+                        translate  (-175 + j * 50 - 15) (175 - i * 50 - 15) (scale 0.1 0.1 (text (intToString x)))]
                 
 handler _ world = world
                 
