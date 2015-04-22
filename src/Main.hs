@@ -151,42 +151,43 @@ checkCell s (Black x 0) i j = verticalBlock s x (i + 1) j
 checkCell s (Black x y) i j = handleString (verticalBlock s x (i + 1) j)
                                            (horizontalBlock s y i (j + 1))
 
----------------------------check blocks, count sum-----------------------------
+---------------------------check blocks, count summa-----------------------------
 
 horizontalBlock :: [[Cell]] -> Int -> Int -> Int -> String
 horizontalBlock [] _ _ _ = ""
-horizontalBlock (x : xs) sum 0 j = handleHorBlock x sum j []
-horizontalBlock (x : xs) sum i j = horizontalBlock xs sum (i - 1) j
+horizontalBlock (x : _) summa 0 j = handleHorBlock x summa j []
+horizontalBlock (_ : xs) summa i j = horizontalBlock xs summa (i - 1) j
 
 handleHorBlock :: [Cell] -> Int -> Int -> [Int] -> String
 handleHorBlock _ _ _ [0] = "Number can't be repeated"
 handleHorBlock [] 0 _ _ = ""
-handleHorBlock [] s _ _ = "Wrong solution. Try again"
-handleHorBlock ((Black _ _) : xs) 0 0 _ = ""
-handleHorBlock ((Black _ _) : xs) sum 0 _ = "Wrong solution. Try again"
-handleHorBlock ((White 0) : xs) _ 0 _ = "Some cells are not filled"
-handleHorBlock ((White x) : xs) sum 0 l = handleHorBlock xs (sum - x) 0 (addNumberToL x l)
-handleHorBlock (x : xs) sum j l = handleHorBlock xs sum (j - 1) l
+handleHorBlock [] _ _ _ = "Wrong solution. Try again"
+handleHorBlock ((Black _ _) : _) 0 0 _ = ""
+handleHorBlock ((Black _ _) : _) _ 0 _ = "Wrong solution. Try again"
+handleHorBlock ((White 0) : _) _ 0 _ = "Some cells are not filled"
+handleHorBlock ((White x) : xs) summa 0 l = handleHorBlock xs (summa - x) 0 (addNumberToL x l)
+handleHorBlock (_ : xs) summa j l = handleHorBlock xs summa (j - 1) l
 
 
 verticalBlock :: [[Cell]] -> Int -> Int -> Int -> String
 verticalBlock [] _ _ _ = ""
-verticalBlock (x : xs) sum 0 j  = handleVerBlock xs (findVertCell x j) sum j []
-verticalBlock (x : xs) sum i j  = verticalBlock xs sum (i - 1) j
+verticalBlock (x : xs) summa 0 j  = handleVerBlock xs (findVertCell x j) summa j []
+verticalBlock (_ : xs) summa i j  = verticalBlock xs summa (i - 1) j
 
 findVertCell :: [Cell] -> Int -> Cell
-findVertCell (x : xs) 0 = x
-findVertCell (x : xs) j = findVertCell xs (j - 1)
+findVertCell [] _ = (White 0)
+findVertCell (x : _) 0 = x
+findVertCell (_ : xs) j = findVertCell xs (j - 1)
 
 handleVerBlock :: [[Cell]] -> Cell -> Int -> Int -> [Int] -> String
 handleVerBlock _ _ _ _ [0] = "Number can't be repeated"
 handleVerBlock _ (Black _ _) 0 _ _ = ""
-handleVerBlock _ (Black _ _) s _ _ = "Wrong solution. Try again"
+handleVerBlock _ (Black _ _) _ _ _ = "Wrong solution. Try again"
 handleVerBlock _ (White 0) _ _ _ = "Some cells are not filled"
-handleVerBlock [] (White x) sum j l = handleVerBlock [] (Black x 0) (sum - x) j 
+handleVerBlock [] (White x) summa j l = handleVerBlock [] (Black x 0) (summa - x) j 
                                             (addNumberToL x l)
-handleVerBlock (m : ms) (White x) sum j l = handleVerBlock ms (findVertCell m j)
-                                            (sum - x) j (addNumberToL x l)
+handleVerBlock (m : ms) (White x) summa j l = handleVerBlock ms (findVertCell m j)
+                                            (summa - x) j (addNumberToL x l)
                                             
 ---------------------addition to list and check for matching numbers----
 
