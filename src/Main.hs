@@ -4,8 +4,9 @@ import Graphics.Gloss.Interface.Pure.Game
 import Control.Applicative()
 import Data.Char
 import Data.String()
+import Data.List
 
-data World = World [[Cell]] String Float Float Int
+data World = World [[Cell]] String Float Float Int String
 data Cell = White Int | Black Int Int 
 
 -------------the main function, loading from file and creatint field-----------
@@ -13,7 +14,7 @@ data Cell = White Int | Black Int Int
 main :: IO ()
 main = do
     src <- readFile "../examples/input.txt"
-    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0)  
+    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0 "Select cell and press F1 to show the hint")  
   
   
 createWorld :: World -> IO()
@@ -27,7 +28,7 @@ createWorld world = play (InWindow "Kakuro" (500, 600) (20, 20))
                 
                 
 converter :: World -> Picture                       
-converter (World s z a b _) = Pictures[createTopText z, createAllRows s 0 a b]
+converter (World s z a b _ prompt) = Pictures[createTopText z, createAllRows s 0 a b, createPrompt prompt]
 
 ------------------------------------all field---------------------------------------------
 
@@ -47,17 +48,23 @@ createOneRow (x : xs) i j a b = Pictures[(createOneCell x i j a b), (createOneRo
 --------------------create one cell - white or black: create rectangle and text---------
 
 createOneCell :: Cell -> Float -> Float -> Float -> Float -> Picture
-createOneCell (White x) i j a b | (i == a) && (j == b) && x == 0 = Pictures[(whiteRectangle i j) , (greenRectangle i j)]
-                                | (i == a) && (j == b) = Pictures[(cellTextWhite x i j), (whiteRectangle i j) , (greenRectangle i j)]
+createOneCell (White x) i j a b | (i == a) && (j == b) && x == 0 = Pictures[(whiteRectangle i j) ,
+                                                                            (greenRectangle i j)]
+                                | (i == a) && (j == b) = Pictures[(cellTextWhite x i j),
+                                                                    (whiteRectangle i j) , 
+                                                                    (greenRectangle i j)]
                                 | x == 0 = whiteRectangle i j
-                                | otherwise = Pictures[(cellTextWhite x i j), (whiteRectangle i j) , (yellowRectangle i j)]
-createOneCell (Black x y) i j _ _ =  Pictures[(cellTextBlack x y i j), (blackRectangle i j)]
+                                | otherwise = Pictures[(cellTextWhite x i j), 
+                                                        (whiteRectangle i j) , 
+                                                        (yellowRectangle i j)]
+createOneCell (Black x y) i j _ _ =  Pictures[(cellTextBlack x y i j),(blackRectangle i j)]
 
 whiteRectangle :: Float -> Float -> Picture
 whiteRectangle i j = translate  (-175 + j * 50) (175 - i * 50) (rectangleWire 50 50)
 
 greenRectangle :: Float -> Float -> Picture
-greenRectangle i j = color (makeColor 0.7 0.9 0.7 0.7) (translate  (-175 + j * 50) (175 - i * 50) (rectangleSolid 50 50))
+greenRectangle i j = color (makeColor 0.7 0.9 0.7 0.7) (translate  (-175 + j * 50) (175 - i * 50) 
+                                (rectangleSolid 50 50))
 
 blackRectangle :: Float -> Float -> Picture
 blackRectangle i j  =  Pictures[color (makeColor 0.7 0.7 0.7 0.7) 
@@ -66,11 +73,17 @@ blackRectangle i j  =  Pictures[color (makeColor 0.7 0.7 0.7 0.7)
                     line[ (-200 + 50 * j, 200 - 50 * i), (-150 + j * 50, 150 - i * 50)]]
                     
 yellowRectangle :: Float -> Float -> Picture
-yellowRectangle i j = color (makeColor 0.94 0.94 0.58 0.7) (translate  (-175 + j * 50) (175 - i * 50) (rectangleSolid 50 50))               
+yellowRectangle i j = color (makeColor 0.94 0.94 0.58 0.7) (translate  (-175 + j * 50) (175 - i * 50)
+                                (rectangleSolid 50 50))               
 
 cellTextWhite :: Int -> Float -> Float -> Picture
 cellTextWhite 0 _ _ = Blank
 cellTextWhite n i j = translate (-175 + j * 50 - 5) (175 - i * 50 - 5) (scale 0.2 0.2 (text (intToString n)))
+
+---------------------------------image of prompt-----------------------------------
+
+createPrompt :: String -> Picture
+createPrompt s = translate (-200) (260) (scale 0.12 0.12 (text s))
                       
 --------------------------------convert int to string--------------------------------
 
@@ -92,13 +105,15 @@ cellTextBlack x y i j = Pictures[translate  (-175 + j * 50 + 5) (175 - i * 50 + 
 ---------------the event handler: mouse left button and 1-9 numbers buttons---------------
                 
 handler :: Event -> World -> World
-handler (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z _ _ _) = 
-                World s z (rowsNumber j) (colsNumber i) 0
-handler (EventKey (Char c) Down _ _) (World s z x y _) 
-                | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c))
-                | otherwise = (World s z x y 0)
-handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n) =
-                World s (answerForUser (World s z x y n)) (-1) (-1) 0
+handler (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z _ _ _ prompt) = 
+                World s z (rowsNumber j) (colsNumber i) 0 prompt
+handler (EventKey (Char c) Down _ _) (World s z x y _ prompt) 
+                | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c) prompt)
+                | otherwise = (World s z x y 0 prompt)
+handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n prompt) =
+                World s (answerForUser s) (-1) (-1) 0 prompt
+handler (EventKey (SpecialKey KeyF1) Down _ _) (World s z x y n _) =
+                World s z x y n (generatePrompt s x y)
 handler _ world = world
 
 ------------------row's and column's number--------------------------------------
@@ -115,8 +130,8 @@ colsNumber x | x < -200 || x > 200 = (-1)
 ------------------add permission number to white cell----------------
 
 putCell :: World -> World
-putCell (World s z x y n) | x == (-1) || y == (-1) = World s z (-1) (-1) 0
-                          | otherwise = (World (newCells s x y n) z (-1) (-1) 0)
+putCell (World s z x y n prompt) | x == (-1) || y == (-1) = World s z (-1) (-1) 0 prompt
+                          | otherwise = (World (newCells s x y n) z (-1) (-1) 0 prompt)
 
 newCells :: [[Cell]] -> Float -> Float -> Int -> [[Cell]]
 newCells [] _ _ _ = []
@@ -130,8 +145,8 @@ newCell s _ _ = s
 
 ------------------------end of the game: create answer to user about win--------------
 
-answerForUser :: World -> String
-answerForUser (World s _ _ _ _) = createAnswer (checkCells s s 0)
+answerForUser :: [[Cell]] -> String
+answerForUser s = createAnswer (checkCells s s 0)
 
 -----------------------create error message or phrase "You won"-------------------
 
@@ -238,3 +253,58 @@ toInt :: String -> Int -> Int
 toInt [] s = s
 toInt (x:xs) s = (toInt xs (s * 10 + (digitToInt x)))
 
+-------------------------------------------------------------------------
+---------------generation of prompt--------------------------------------
+
+elementAt :: [a] -> Float -> a
+elementAt l i = last (take ((round i) + 1) l)
+
+isBlack :: Cell -> Bool
+isBlack (Black _ _) = True
+isBlack _ = False
+
+listIntToString :: [Int] -> String
+listIntToString [] = "your solution is wrong yet" 
+listIntToString [x] = intToString x
+listIntToString (x : xs) = (intToString x) ++ " " ++ (listIntToString xs)
+
+intersectList :: [Int] -> [Int] -> [Int]
+intersectList a b = filter (\x -> (elem x a)) b
+
+------------------------------------------------------------------------------
+
+generatePrompt :: [[Cell]] -> Float -> Float -> String
+generatePrompt s x y | (x == -1) || (y == -1) || (isBlack (elementAt (elementAt s x) y)) 
+                                = "Select cell and press F1 to show the hint"
+
+                     | otherwise = "Hint: " ++ listIntToString (intersectList (generatePromptHor s x y)
+                                                                (generatePromptVer (transpose s) y x))
+
+generatePromptHor :: [[Cell]] -> Float -> Float -> [Int]
+generatePromptHor s x y = exclusionPromptHor (elementAt s x) (elementAt (elementAt s x) y) y y
+                                                    
+exclusionPromptHor :: [Cell] -> Cell -> Float -> Float -> [Int]
+exclusionPromptHor cells (Black _ n) y posY = exclusionRightPrompt 
+                             (drop ((round y) + 1) cells) [1..9] n (posY - y - 1)
+exclusionPromptHor cells (White _) y posY = exclusionPromptHor
+                              cells (elementAt cells (y - 1)) (y - 1) posY
+                                                    
+generatePromptVer :: [[Cell]] -> Float -> Float -> [Int]
+generatePromptVer s x y = exclusionPromptVer (elementAt s x) (elementAt (elementAt s x) y) y y
+
+exclusionPromptVer :: [Cell] -> Cell -> Float -> Float -> [Int]
+exclusionPromptVer cells (Black n _) y posY = exclusionRightPrompt 
+                             (drop ((round y) + 1) cells) [1..9] n (posY - y - 1)
+exclusionPromptVer cells (White _) y posY = exclusionPromptVer
+                              cells (elementAt cells (y - 1)) (y - 1) posY
+
+exclusionRightPrompt :: [Cell] -> [Int] -> Int -> Float -> [Int]
+exclusionRightPrompt [] list sum posY = filter (\x -> x <= sum) list
+exclusionRightPrompt ((Black _ _) : xs) list sum posY = filter (\x -> x <= sum) list
+exclusionRightPrompt ((White x) : xs) list sum 0 = exclusionRightPrompt xs list sum (-1)
+exclusionRightPrompt ((White 0) : xs) list sum posY = 
+                            exclusionRightPrompt xs list (sum - 1) (posY - 1)
+exclusionRightPrompt ((White x) : xs) list sum posY = 
+                            exclusionRightPrompt xs (delete x list) (sum - x) (posY - 1)
+
+--------------------------------------------------------------------------
