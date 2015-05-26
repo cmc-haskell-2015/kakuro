@@ -13,11 +13,11 @@ data Cell = White Int | Black Int Int
 main :: IO ()
 main = do
     src <- readFile "../examples/input.txt"
-    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" 500 500 0)  
+    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0)  
   
   
 createWorld :: World -> IO()
-createWorld world = play (InWindow "Kakuro" (500, 500) (20, 20))
+createWorld world = play (InWindow "Kakuro" (500, 600) (20, 20))
                 (makeColor 1 1 1 1)
                 50
                 world
@@ -27,44 +27,50 @@ createWorld world = play (InWindow "Kakuro" (500, 500) (20, 20))
                 
                 
 converter :: World -> Picture                       
-converter (World s z _ _ _) = Pictures[createTopText z, createAllRows s 0]
+converter (World s z a b _) = Pictures[createTopText z, createAllRows s 0 a b]
 
 ------------------------------------all field---------------------------------------------
 
 createTopText :: String -> Picture
 createTopText s = translate (-200) (220) (scale 0.12 0.12 (text s))
 
-createAllRows :: [[Cell]] -> Float -> Picture
-createAllRows [] _ = Blank
-createAllRows (x : xs) n = Pictures[(createOneRow x n 0), (createAllRows xs (n + 1))]
+createAllRows :: [[Cell]] -> Float -> Float -> Float -> Picture
+createAllRows [] _ _ _= Blank
+createAllRows (x : xs) n a b = Pictures[(createOneRow x n 0 a b), (createAllRows xs (n + 1) a b)]
 
 -----------------------------------one row of field------------------------------------
 
-createOneRow :: [Cell] -> Float -> Float -> Picture
-createOneRow [] _ _ = Blank
-createOneRow (x : xs) i j = Pictures[(createOneCell x i j), (createOneRow xs i (j + 1))]
+createOneRow :: [Cell] -> Float -> Float -> Float -> Float -> Picture
+createOneRow [] _ _ _ _ = Blank
+createOneRow (x : xs) i j a b = Pictures[(createOneCell x i j a b), (createOneRow xs i (j + 1) a b)]
 
 --------------------create one cell - white or black: create rectangle and text---------
 
-createOneCell :: Cell -> Float -> Float -> Picture
-createOneCell (White x) i j = Pictures[(cellTextWhite x i j), (whiteRectangle i j)]
-createOneCell (Black x y) i j =  Pictures[(cellTextBlack x y i j), (blackRectangle i j)]
+createOneCell :: Cell -> Float -> Float -> Float -> Float -> Picture
+createOneCell (White x) i j a b | (i == a) && (j == b) && x == 0 = Pictures[(whiteRectangle i j) , (greenRectangle i j)]
+                                | (i == a) && (j == b) = Pictures[(cellTextWhite x i j), (whiteRectangle i j) , (greenRectangle i j)]
+                                | x == 0 = whiteRectangle i j
+                                | otherwise = Pictures[(cellTextWhite x i j), (whiteRectangle i j) , (yellowRectangle i j)]
+createOneCell (Black x y) i j _ _ =  Pictures[(cellTextBlack x y i j), (blackRectangle i j)]
 
-whiteRectangle :: Float -> Float ->Picture
+whiteRectangle :: Float -> Float -> Picture
 whiteRectangle i j = translate  (-175 + j * 50) (175 - i * 50) (rectangleWire 50 50)
+
+greenRectangle :: Float -> Float -> Picture
+greenRectangle i j = color (makeColor 0.7 0.9 0.7 0.7) (translate  (-175 + j * 50) (175 - i * 50) (rectangleSolid 50 50))
 
 blackRectangle :: Float -> Float -> Picture
 blackRectangle i j  =  Pictures[color (makeColor 0.7 0.7 0.7 0.7) 
                     (translate  (-175 + j * 50)(175 - i * 50) (rectangleSolid 50 50)),
                     translate  (-175 + j * 50) (175 - i * 50) (rectangleWire 50 50),
                     line[ (-200 + 50 * j, 200 - 50 * i), (-150 + j * 50, 150 - i * 50)]]
+                    
+yellowRectangle :: Float -> Float -> Picture
+yellowRectangle i j = color (makeColor 0.94 0.94 0.58 0.7) (translate  (-175 + j * 50) (175 - i * 50) (rectangleSolid 50 50))               
 
 cellTextWhite :: Int -> Float -> Float -> Picture
 cellTextWhite 0 _ _ = Blank
-cellTextWhite n i j = Pictures[translate (-175 + j * 50 - 5) (175 - i * 50 - 5)
-                    (scale 0.2 0.2 (text (intToString n))),
-                    color (makeColor 0.94 0.94 0.58 0.7) 
-                    (translate  (-175 + j * 50) (175 - i * 50) (rectangleSolid 50 50))]
+cellTextWhite n i j = translate (-175 + j * 50 - 5) (175 - i * 50 - 5) (scale 0.2 0.2 (text (intToString n)))
                       
 --------------------------------convert int to string--------------------------------
 
@@ -87,28 +93,37 @@ cellTextBlack x y i j = Pictures[translate  (-175 + j * 50 + 5) (175 - i * 50 + 
                 
 handler :: Event -> World -> World
 handler (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z _ _ _) = 
-                World s z i j 0
+                World s z (rowsNumber j) (colsNumber i) 0
 handler (EventKey (Char c) Down _ _) (World s z x y _) 
                 | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c))
                 | otherwise = (World s z x y 0)
-handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n) = 
-                World s (answerForUser (World s z x y n)) 500 500 0
-handler _ world = world                
+handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n) =
+                World s (answerForUser (World s z x y n)) (-1) (-1) 0
+handler _ world = world
+
+------------------row's and column's number--------------------------------------
+
+rowsNumber :: Float -> Float
+rowsNumber x | x < -200 || x > 200 = (-1)
+             | otherwise = fromInteger (7 - (div ((round x) + 200) 50))
+             
+colsNumber :: Float -> Float
+colsNumber x | x < -200 || x > 200 = (-1)
+             | otherwise = fromInteger (div ((round x) + 200) 50)
+             
 
 ------------------add permission number to white cell----------------
 
 putCell :: World -> World
-putCell (World s z x y n) | x > -200 && x < 200 && y > -200 && y < 200 = 
-            (World (newCells  s (7 - (div ((round y) + 200) 50))
-            (div  ((round x) + 200) 50) n) z 500 500 0)
-                          | otherwise = World s z 500 500 0
+putCell (World s z x y n) | x == (-1) || y == (-1) = World s z (-1) (-1) 0
+                          | otherwise = (World (newCells s x y n) z (-1) (-1) 0)
 
-newCells :: [[Cell]] -> Int -> Int -> Int -> [[Cell]]
+newCells :: [[Cell]] -> Float -> Float -> Int -> [[Cell]]
 newCells [] _ _ _ = []
 newCells (s : sx) 0 y n = (newCell s y n) : sx 
 newCells (s : sx) x y n = s : (newCells sx (x - 1) y n)  
 
-newCell :: [Cell] -> Int -> Int -> [Cell]
+newCell :: [Cell] -> Float -> Int -> [Cell]
 newCell ((White _) : xs) 0  n = (White n) : xs
 newCell (x : xs) y n = x : (newCell xs (y - 1) n)
 newCell s _ _ = s
