@@ -5,7 +5,8 @@ import Control.Applicative()
 import Data.Char
 import Data.String()
 
-data World = World [[Cell]] String Float Float Int
+
+data World = World [[Cell]] String Float Float Int Float 
 data Cell = White Int | Black Int Int 
 
 -------------the main function, loading from file and creatint field-----------
@@ -13,13 +14,13 @@ data Cell = White Int | Black Int Int
 main :: IO ()
 main = do
     src <- readFile "../examples/input.txt"
-    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" 500 500 0)  
+    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" 500 500 0 0)  
   
   
 createWorld :: World -> IO()
-createWorld world = play (InWindow "Kakuro" (500, 500) (20, 20))
+createWorld world = play (InWindow "Kakuro" (650, 650) (20, 20))
                 (makeColor 1 1 1 1)
-                50
+                1
                 world
                 converter
                 handler
@@ -27,7 +28,41 @@ createWorld world = play (InWindow "Kakuro" (500, 500) (20, 20))
                 
                 
 converter :: World -> Picture                       
-converter (World s z _ _ _) = Pictures[createTopText z, createAllRows s 0]
+converter (World s z _ _ _ t)| z ==  "You can enter the numbers from 1 to 9"  = Pictures[createbut t, createTopText z, createAllRows s 0]
+                             | otherwise = Pictures[createstop  z t]
+
+createstop :: String -> Float -> Picture
+createstop z t = Pictures[rectangleWire 300 100, translate (-75) (-15) (scale 0.3 0.3 (text (print_time t))), translate (-200) (150) (scale 0.3 0.3 (text z))]
+
+
+-------------------------empty updater----------------------------
+                
+updater :: Float -> World -> World
+updater tim (World s z x y n t)| z ==  "You can enter the numbers from 1 to 9"  = (World s z x y n  (t + tim))
+                               | otherwise = (World s z x y n t)
+
+-----------------------my----------------------------------------
+
+
+createbut :: Float -> Picture
+createbut s = Pictures[translate  0 275 (rectangleWire 200 50), translate (-50) 265 (scale 0.2 0.2 (text (print_time s)))]
+
+
+print_time :: Float-> String 
+print_time s =  hour s ++ ":"  ++ minute s ++ ":" ++ seconds s
+
+hour :: Float -> String
+hour s = check (div (truncate s) 3600)
+
+minute :: Float -> String
+minute s = check (div (mod (truncate s) 3600) 60)
+
+seconds :: Float -> String
+seconds s = check(mod (mod (truncate s) 3600) 60)
+
+check  :: Int -> String
+check n | n < 10 = "0" ++ show n
+        | otherwise = show n
 
 ------------------------------------all field---------------------------------------------
 
@@ -86,22 +121,22 @@ cellTextBlack x y i j = Pictures[translate  (-175 + j * 50 + 5) (175 - i * 50 + 
 ---------------the event handler: mouse left button and 1-9 numbers buttons---------------
                 
 handler :: Event -> World -> World
-handler (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z _ _ _) = 
-                World s z i j 0
-handler (EventKey (Char c) Down _ _) (World s z x y _) 
-                | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c))
-                | otherwise = (World s z x y 0)
-handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n) = 
-                World s (answerForUser (World s z x y n)) 500 500 0
+handler (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z _ _ _ t) = 
+                World s z i j 0 t
+handler (EventKey (Char c) Down _ _) (World s z x y _ t)  
+                | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c) t)
+                | otherwise = (World s z x y 0 t)
+handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n t) = 
+                World s (answerForUser (World s z x y n t)) 500 500 0 t
 handler _ world = world                
 
 ------------------add permission number to white cell----------------
 
 putCell :: World -> World
-putCell (World s z x y n) | x > -200 && x < 200 && y > -200 && y < 200 = 
+putCell (World s z x y n t) | x > -200 && x < 200 && y > -200 && y < 200 = 
             (World (newCells  s (7 - (div ((round y) + 200) 50))
-            (div  ((round x) + 200) 50) n) z 500 500 0)
-                          | otherwise = World s z 500 500 0
+            (div  ((round x) + 200) 50) n) z 500 500 0 t)
+                          | otherwise = World s z 500 500 0  t
 
 newCells :: [[Cell]] -> Int -> Int -> Int -> [[Cell]]
 newCells [] _ _ _ = []
@@ -116,13 +151,13 @@ newCell s _ _ = s
 ------------------------end of the game: create answer to user about win--------------
 
 answerForUser :: World -> String
-answerForUser (World s _ _ _ _) = createAnswer (checkCells s s 0)
+answerForUser (World s _ _ _ _ t) = createAnswer (checkCells s s 0) 
 
 -----------------------create error message or phrase "You won"-------------------
 
 createAnswer :: String -> String
-createAnswer "" = "You won!"
-createAnswer s = s
+createAnswer ""  = "You won!" 
+createAnswer s  = s
 
 handleString :: String -> String -> String
 handleString "" "" = ""
@@ -196,10 +231,6 @@ addNumberToL n [] = [n]
 addNumberToL n (x : xs) | n == x = [0]
                         | otherwise = (x : (addNumberToL n xs))
 
--------------------------empty updater----------------------------
-                
-updater :: Float -> World -> World
-updater _ world = world
 
 -------------creating array of cells into text file----------------
 
