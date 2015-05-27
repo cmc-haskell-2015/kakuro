@@ -1,12 +1,12 @@
 ﻿module Main where
 
-import Graphics.Gloss.Interface.Pure.Game
+import Graphics.Gloss.Interface.IO.Game
 import Control.Applicative()
 import Data.Char
 import Data.String()
 import Data.List
 
-data World = World [[Cell]] String Float Float Int String
+data World = World [[Cell]] String Float Float Int String Int
 data Cell = White Int | Black Int Int 
 
 -------------the main function, loading from file and creatint field-----------
@@ -14,21 +14,37 @@ data Cell = White Int | Black Int Int
 main :: IO ()
 main = do
     src <- readFile "../examples/input.txt"
-    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0 "Select cell and press F1 to show the hint")  
-  
+    createWorld (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0 "Select cell and press F1 to show the hint" 0)
+
   
 createWorld :: World -> IO()
-createWorld world = play (InWindow "Kakuro" (500, 600) (20, 20))
-                (makeColor 1 1 1 1)
-                50
-                world
-                converter
-                handler
-                updater
+createWorld world = do
+                playIO (InWindow "Kakuro" (500, 600) (20, 20)) (makeColor 1 1 1 1) 50 world converter handler updater
                 
                 
-converter :: World -> Picture                       
-converter (World s z a b _ prompt) = Pictures[createTopText z, createAllRows s 0 a b, createPrompt prompt]
+converter :: World -> IO Picture
+converter (World s z a b _ prompt flag) = return (Pictures[createTopText z, createAllRows s 0 a b, createPrompt prompt, getButtons])
+
+-----------------------------------buttons-----------------------------------------------
+
+getButtons :: Picture
+getButtons = Pictures[saveButton, loadButton, newGameButton]
+
+saveButton :: Picture
+saveButton = Pictures[translate (-175) (-260) (scale 0.17 0.17 (text "SAVE")),
+                color (makeColor 0.6 0.6 0.94 0.7) (translate  (-150) (-250) (rectangleSolid 100 50)),
+                color (makeColor 0.7 0.7 1 0.7) (translate  (-150) (-250) (rectangleWire 100 50))]
+                
+loadButton :: Picture
+loadButton = Pictures[translate (-25) (-260) (scale 0.17 0.17 (text "LOAD")),
+                color (makeColor 0.6 0.6 0.94 0.7) (translate  0 (-250) (rectangleSolid 100 50)),
+                color (makeColor 0.7 0.7 1 0.7) (translate  0 (-250) (rectangleWire 100 50))]
+                
+newGameButton :: Picture
+newGameButton = Pictures[translate 110 (-257) (scale 0.12 0.12 (text "NEW GAME")),
+                color (makeColor 0.6 0.6 0.94 0.7) (translate  150 (-250) (rectangleSolid 100 50)),
+                color (makeColor 0.7 0.7 1 0.7) (translate  150 (-250) (rectangleWire 100 50))]
+
 
 ------------------------------------all field---------------------------------------------
 
@@ -48,14 +64,14 @@ createOneRow (x : xs) i j a b = Pictures[(createOneCell x i j a b), (createOneRo
 --------------------create one cell - white or black: create rectangle and text---------
 
 createOneCell :: Cell -> Float -> Float -> Float -> Float -> Picture
-createOneCell (White x) i j a b | (i == a) && (j == b) && x == 0 = Pictures[(whiteRectangle i j) ,
+createOneCell (White x) i j a b | (i == a) && (j == b) && x == 0 = Pictures[(whiteRectangle i j),
                                                                             (greenRectangle i j)]
                                 | (i == a) && (j == b) = Pictures[(cellTextWhite x i j),
-                                                                    (whiteRectangle i j) , 
+                                                                    (whiteRectangle i j),
                                                                     (greenRectangle i j)]
                                 | x == 0 = whiteRectangle i j
-                                | otherwise = Pictures[(cellTextWhite x i j), 
-                                                        (whiteRectangle i j) , 
+                                | otherwise = Pictures[(cellTextWhite x i j),
+                                                        (whiteRectangle i j),
                                                         (yellowRectangle i j)]
 createOneCell (Black x y) i j _ _ =  Pictures[(cellTextBlack x y i j),(blackRectangle i j)]
 
@@ -92,7 +108,7 @@ intToString n | n < 10 = [intToDigit n]
               | otherwise = [intToDigit (div n 10), intToDigit(mod n 10)]
 
 cellTextBlack :: Int -> Int -> Float -> Float -> Picture
-cellTextBlack 99 99 _ _ = Blank
+cellTextBlack 0 0 _ _ = Blank
 cellTextBlack 0 y i j = translate  (-175 + j * 50 + 5) (175 - i * 50 + 5) 
             (scale 0.1 0.1 (text (intToString y)))
 cellTextBlack x 0 i j = translate  (-175 + j * 50 - 15) (175 - i * 50 - 15)
@@ -103,18 +119,24 @@ cellTextBlack x y i j = Pictures[translate  (-175 + j * 50 + 5) (175 - i * 50 + 
             (scale 0.1 0.1 (text (intToString x)))]
                         
 ---------------the event handler: mouse left button and 1-9 numbers buttons---------------
-                
-handler :: Event -> World -> World
-handler (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z _ _ _ prompt) = 
-                World s z (rowsNumber j) (colsNumber i) 0 prompt
-handler (EventKey (Char c) Down _ _) (World s z x y _ prompt) 
-                | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c) prompt)
-                | otherwise = (World s z x y 0 prompt)
-handler (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n prompt) =
-                World s (answerForUser s) (-1) (-1) 0 prompt
-handler (EventKey (SpecialKey KeyF1) Down _ _) (World s z x y n _) =
-                World s z x y n (generatePrompt s x y)
-handler _ world = world
+
+handler :: Event -> World -> IO World
+handler ev w = return (handlerDecorator ev w)
+
+handlerDecorator :: Event -> World -> World
+handlerDecorator (EventKey (MouseButton LeftButton) Down _ (i, j)) (World s z x y n prompt flag) 
+                    | (i > -200) && (i < -100) && (j > -275) && (j < -225) = World s z x y n prompt 1
+                    | (i > -50) && (i < 50) && (j > -275) && (j < -225) = World s z x y n prompt 2
+                    | (i > 100) && (i < 200) && (j > -275) && (j < -225) = World s z x y n prompt 3
+                    | otherwise = World s z (rowsNumber j) (colsNumber i) 0 prompt flag
+handlerDecorator (EventKey (Char c) Down _ _) (World s z x y _ prompt flag) 
+                | c >= '1' && c <= '9' = putCell (World s z x y (digitToInt c) prompt flag)
+                | otherwise = (World s z x y 0 prompt flag)
+handlerDecorator (EventKey (SpecialKey KeyEnter) Down _ _) (World s z x y n prompt flag) =
+                World s (answerForUser s) (-1) (-1) 0 prompt flag
+handlerDecorator (EventKey (SpecialKey KeyF1) Down _ _) (World s z x y n _ flag) =
+                World s z x y n (generatePrompt s x y) flag
+handlerDecorator _ world = world
 
 ------------------row's and column's number--------------------------------------
 
@@ -130,8 +152,8 @@ colsNumber x | x < -200 || x > 200 = (-1)
 ------------------add permission number to white cell----------------
 
 putCell :: World -> World
-putCell (World s z x y n prompt) | x == (-1) || y == (-1) = World s z (-1) (-1) 0 prompt
-                          | otherwise = (World (newCells s x y n) z (-1) (-1) 0 prompt)
+putCell (World s z x y n prompt flag) | x == (-1) || y == (-1) = World s z (-1) (-1) 0 prompt flag
+                          | otherwise = (World (newCells s x y n) z (-1) (-1) 0 prompt flag)
 
 newCells :: [[Cell]] -> Float -> Float -> Int -> [[Cell]]
 newCells [] _ _ _ = []
@@ -173,7 +195,7 @@ checkRow s (x : xs) i j = handleString (checkCell s x i j) (checkRow s xs i (j +
 
 checkCell :: [[Cell]] -> Cell -> Int -> Int -> String
 checkCell _ (White _) _ _ = ""
-checkCell _ (Black 99 99) _ _ = ""
+checkCell _ (Black 0 0) _ _ = ""
 ------(i, j)-cell is black, next cell is (i, j + 1) for horizontal
                                 --and (i + 1, j) for vertical-----
 checkCell s (Black 0 y) i j = horizontalBlock s y i (j + 1)
@@ -228,8 +250,19 @@ addNumberToL n (x : xs) | n == x = [0]
 
 -------------------------empty updater----------------------------
                 
-updater :: Float -> World -> World
-updater _ world = world
+updater :: Float -> World -> IO World
+updater _ (World s z x y n prompt 1) = do
+            saveGame s
+            return (World s z x y n prompt 0)
+updater _ (World s z x y n prompt 2) = do
+            src <- readFile "../examples/lastGame.txt"
+            return (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0 "Select cell and press F1 to show the hint" 0)
+updater _ (World s z x y n prompt 3) = do
+            src <- readFile "../examples/input.txt"
+            return (World (handleInput src) "You can enter the numbers from 1 to 9" (-1) (-1) 0 "Select cell and press F1 to show the hint" 0)
+updater _ world = do
+            return world
+
 
 -------------creating array of cells into text file----------------
 
@@ -243,11 +276,14 @@ handleLines (x:xs) = (handleWords (words x)) : (handleLines xs)
 handleWords :: [String] -> [Cell]
 handleWords [] = []
 handleWords [_] = []
-handleWords (x : y : xs) = (makeCell (toInt x 0) (toInt y 0)) : (handleWords xs)
+handleWords ("W" : y : xs) = (makeWhiteCell (toInt y 0)) : (handleWords xs)
+handleWords ("B" : x : y : xs) = (makeBlackCell (toInt x 0) (toInt y 0)) : (handleWords xs)
 
-makeCell :: Int -> Int -> Cell
-makeCell 0 0 = White 0
-makeCell t1 t2 = Black t1 t2
+makeWhiteCell :: Int -> Cell
+makeWhiteCell x = White x
+
+makeBlackCell :: Int -> Int -> Cell
+makeBlackCell x y = Black x y
 
 toInt :: String -> Int -> Int
 toInt [] s = s
@@ -308,3 +344,21 @@ exclusionRightPrompt ((White x) : xs) list sum posY =
                             exclusionRightPrompt xs (delete x list) (sum - x) (posY - 1)
 
 --------------------------------------------------------------------------
+
+--------------------------------save games------------------------------------
+------------------------------------------------------------------------------
+
+saveGame :: [[Cell]] -> IO()
+saveGame s = writeFile "../examples/lastGame.txt" (saveAllRows s)
+
+saveAllRows :: [[Cell]] -> String
+saveAllRows [] = ""
+saveAllRows (x : xs) = (saveRow x) ++ "\n" ++ (saveAllRows xs)
+
+saveRow :: [Cell] -> String
+saveRow [] = ""
+saveRow ((White x) : xs) = "W " ++ (intToString x) ++ " " ++ (saveRow xs)
+saveRow ((Black x y) : xs) = "B " ++ (intToString x) ++ " " ++
+                    (intToString y) ++ " " ++ (saveRow xs)
+
+
